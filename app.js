@@ -4,6 +4,7 @@ import {IfcAPI} from 'web-ifc';
 const $=id=>document.getElementById(id), view=$('viewer');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0xf4f3f1);
 const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.01,1e9);
+const modelUp=new THREE.Vector3(0,-1,0);camera.up.copy(modelUp);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.localClippingEnabled=true;view.appendChild(renderer.domElement);
 const orbit=new OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.screenSpacePanning=true;
@@ -18,12 +19,13 @@ function progress(n,t){$('progress').value=n;$('loadingText').textContent=t;stat
 function changeMode(m){mode=m;for(const id of ['identify','measure','cut'])$(id).classList.toggle('active',id===m);$('measurePanel').classList.toggle('show',m==='measure');$('cutPanel').classList.toggle('show',m==='cut');if(m!=='measure')first=null;}
 function fit(dir='iso'){
  if(!modelBox)return;const sphere=modelBox.getBoundingSphere(new THREE.Sphere()),c=sphere.center,r=Math.max(sphere.radius,1);
- const p=dir==='top'?new THREE.Vector3(c.x,c.y+r*2.5,c.z+.001):dir==='front'?new THREE.Vector3(c.x,c.y+r*.05,c.z+r*2.5):new THREE.Vector3(c.x+r*1.5,c.y+r*1.1,c.z+r*1.5);
- orbit.target.copy(c);camera.position.copy(p);camera.near=Math.max(r/10000,.01);camera.far=Math.max(r*60,1000);camera.updateProjectionMatrix();orbit.update();
+ const size=modelBox.getSize(new THREE.Vector3()),horizontal= size.x>=size.z?new THREE.Vector3(.35,0,1):new THREE.Vector3(1,0,.35);
+ const p=dir==='top'?c.clone().addScaledVector(modelUp,r*2.5).add(new THREE.Vector3(0,0,.001)):dir==='front'?c.clone().addScaledVector(modelUp,r*.05).add(new THREE.Vector3(0,0,r*2.5)):c.clone().add(horizontal.addScaledVector(modelUp,1.5).normalize().multiplyScalar(r*2.7));
+ camera.up.copy(dir==='top'?new THREE.Vector3(0,0,1):modelUp);orbit.target.copy(c);camera.position.copy(p);camera.near=Math.max(r/10000,.01);camera.far=Math.max(r*60,1000);camera.updateProjectionMatrix();orbit.update();
 }
-function setCut(){if(!modelBox)return;const axis=cutAxis==='x'?new THREE.Vector3(1,0,0):cutAxis==='y'?new THREE.Vector3(0,0,-1):new THREE.Vector3(0,1,0);
+function setCut(){if(!modelBox)return;const axis=cutAxis==='x'?new THREE.Vector3(1,0,0):cutAxis==='y'?new THREE.Vector3(0,0,1):modelUp.clone();
  const center=modelBox.getCenter(new THREE.Vector3()),size=modelBox.getSize(new THREE.Vector3());const extent=cutAxis==='x'?size.x:cutAxis==='y'?size.z:size.y;
- const pos=axis.dot(center)+((+$('cutRange').value/100)-.5)*extent*(cutAxis==='y'?-1:1);
+ const pos=axis.dot(center)+((+$('cutRange').value/100)-.5)*extent*(cutAxis==='z'?-1:1);
  plane.normal.copy(axis).multiplyScalar(cutInvert?-1:1);plane.constant=-pos*(cutInvert?-1:1);
  for(const m of allMats)m.clippingPlanes=cutOn?[plane]:[];
  $('cutPct').textContent=$('cutRange').value+'%';}
@@ -50,8 +52,8 @@ function material(color,cache){const v=[color.x,color.y,color.z,color.w],key=v.m
 async function load(){try{
  progress(5,'Baixando IFC...');const res=await fetch('./modelo.ifc',{cache:'no-store'});if(!res.ok)throw new Error('Não foi encontrado modelo.ifc (HTTP '+res.status+').');const bytes=new Uint8Array(await res.arrayBuffer());progress(34,'Inicializando geometria IFC...');
  ifc=new IfcAPI();ifc.SetWasmPath('https://unpkg.com/web-ifc@0.0.77/');await ifc.Init();modelID=ifc.OpenModel(bytes,{COORDINATE_TO_ORIGIN:true,USE_FAST_BOOLS:true});
- // Web-IFC normaliza a geometria com Z vertical. O Three.js usa Y vertical neste visualizador.
- root.rotation.x=-Math.PI/2;
+ // Web-IFC usa Z vertical; neste modelo, o eixo vertical fica voltado para baixo no sistema Y-up do Three.js.
+ root.rotation.x=Math.PI/2;
  try{const text=new TextDecoder().decode(bytes.slice(0,Math.min(bytes.length,1000000)));let m=text.match(/IFCSIUNIT\(\*,\.LENGTHUNIT\.,(\.MILLI\.|\.CENTI\.|\$),\.METRE\.\)/i);unit=m?({'.MILLI.':.001,'.CENTI.':.01,'$':1}[m[1].toUpperCase()]||1):1;}catch(e){}
  const geometryCache=new Map(),materials=new Map();let count=0;
  ifc.StreamAllMeshes(modelID,mesh=>{
