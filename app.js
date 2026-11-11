@@ -19,7 +19,7 @@ function progress(n,t){$('progress').value=n;$('loadingText').textContent=t;stat
 function changeMode(m){mode=m;for(const id of ['identify','measure','cut'])$(id).classList.toggle('active',id===m);$('measurePanel').classList.toggle('show',m==='measure');$('cutPanel').classList.toggle('show',m==='cut');if(m!=='measure')first=null;}
 function fit(dir='iso'){
  if(!modelBox)return;const sphere=modelBox.getBoundingSphere(new THREE.Sphere()),c=sphere.center,r=Math.max(sphere.radius,1);
- const p=dir==='top'?c.clone().addScaledVector(modelUp,r*2.5).add(new THREE.Vector3(0,0,.001)):dir==='front'?c.clone().addScaledVector(modelUp,r*.05).add(new THREE.Vector3(0,0,r*2.5)):c.clone().add(new THREE.Vector3(r*1.5,modelUp.y*r*1.1,r*1.5));
+ const p=dir==='top'?c.clone().addScaledVector(modelUp,r*2.5).add(new THREE.Vector3(0,0,.001)):dir==='front'?c.clone().addScaledVector(modelUp,r*.05).add(new THREE.Vector3(0,0,r*2.5)):c.clone().add(new THREE.Vector3(1,modelUp.y*2,1).normalize().multiplyScalar(r*2.7));
  camera.up.copy(dir==='top'?new THREE.Vector3(0,0,1):modelUp);orbit.target.copy(c);camera.position.copy(p);camera.near=Math.max(r/10000,.01);camera.far=Math.max(r*60,1000);camera.updateProjectionMatrix();orbit.update();
 }
 function setCut(){if(!modelBox)return;const axis=cutAxis==='x'?new THREE.Vector3(1,0,0):cutAxis==='y'?new THREE.Vector3(0,0,1):modelUp.clone();
